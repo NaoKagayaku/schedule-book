@@ -3,40 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>スケジュール帳</title>
+    <title>スケジュール帳 (3カラムUI)</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
-    <div id="main-container">
-        <div id="clock-container">
-            <p id="clock"></p>
-        </div>
+<body class="theme-default"> <div class="app-container">
 
-        <div id="calendar-container">
-            <div id="calendar-header">
-                <button id="prev-month">&lt;</button>
-                <h2 id="month-year"></h2>
-                <button id="next-month">&gt;</button>
-            </div>
-            <div id="calendar-grid">
-                </div>
-        </div>
-
-        <div id="action-buttons-container">
-            <button id="add-event-button">予定を登録</button>
-            <button id="add-task-button">タスクを登録</button>
-        </div>
-
-        <div id="task-list-section">
-            <h3>タスクリスト</h3>
+        <aside class="sidebar-left">
+            <h2>タスク一覧</h2>
             <div id="task-list-container">
                 </div>
-        </div>
+        </aside>
+
+        <main class="main-content">
+
+            <section id="today-task-section">
+                <h2>次にやるべきタスク</h2>
+                <div id="today-task-card" class="hidden">
+                    </div>
+                <p id="no-tasks-message">未完了のタスクはありません。</p>
+            </section>
+
+            <section id="calendar-container">
+                <div id="calendar-header">
+                    <button id="prev-month">&lt;</button>
+                    <h2 id="month-year"></h2>
+                    <button id="next-month">&gt;</button>
+                </div>
+                <div id="calendar-grid">
+                    </div>
+            </section>
+
+            <footer id="clock-container">
+                <p id="clock"></p>
+            </footer>
+        </main>
+
+        <aside class="sidebar-right">
+            <h2>タスクを追加</h2>
+            <form id="new-task-form">
+                <label for="new-task-title">タスク名:</label>
+                <input type="text" id="new-task-title" required>
+
+                <label for="new-task-due-date">期限:</label>
+                <input type="date" id="new-task-due-date" required>
+
+                <label for="new-task-priority">優先度:</label>
+                <select id="new-task-priority">
+                    <option value="high">高</option>
+                    <option value="medium" selected>中</option>
+                    <option value="low">低</option>
+                </select>
+
+                <label for="new-task-tag">タグ:</label>
+                <select id="new-task-tag">
+                    <option value="">(タグなし)</option>
+                    <option value="授業">授業</option>
+                    <option value="サークル">サークル</option>
+                    <option value="バイト">バイト</option>
+                    <option value="その他">その他</option>
+                </select>
+
+                <button type="submit">登録</button>
+            </form>
+
+            <h2>予定を追加</h2>
+            <button id="add-event-button">予定を登録</button>
+        </aside>
+
     </div>
 
     <div id="event-modal" class="hidden">
         <div class="modal-content">
-            <h2>予定を登録</h2>
+            <h2 id="event-modal-title">予定を登録</h2>
             <input type="text" id="event-title" placeholder="予定のタイトル">
             <input type="date" id="event-date">
             <div class="modal-actions">
@@ -46,56 +84,19 @@
         </div>
     </div>
 
-    <div id="task-modal" class="hidden">
-        <div class="modal-content">
-            <h2>タスクを登録</h2>
-            <input type="text" id="task-title" placeholder="タスク名">
-
-            <label for="task-due-date">期限:</label>
-            <input type="date" id="task-due-date">
-
-            <label for="task-tag">タグ:</label>
-            <input type="text" id="task-tag" placeholder="例: 授業, サークル">
-
-            <label for="task-priority">優先度:</label>
-            <select id="task-priority">
-                <option value="high">高</option>
-                <option value="medium">中</option>
-                <option value="low">低</option>
-            </select>
-            <div class="modal-actions">
-                <button id="save-task-button">保存</button>
-                <button id="cancel-task-button">キャンセル</button>
-            </div>
-        </div>
-    </div>
-
-	<div id="event-details-modal" class="hidden">
+    <div id="event-details-modal" class="hidden">
         <div class="modal-content">
             <h2 id="event-details-date"></h2>
-            <div id="event-details-list">
-                </div>
+            <div id="event-details-list"></div>
             <div class="modal-actions">
                 <button id="close-details-button">閉じる</button>
             </div>
         </div>
     </div>
 
-	<div id="task-details-modal" class="hidden">
-        <div class="modal-content">
-            <h2>タスク詳細</h2>
-            <div id="task-details-content">
-                </div>
-            <div class="modal-actions">
-                <button id="close-task-details-button">閉じる</button>
-            </div>
-        </div>
-    </div>
-
-	<div id="next-task-notification" class="hidden">
+    <div id="next-task-notification" class="hidden">
         <h4>お疲れ様です！<br>次のタスクはこちらです。</h4>
-        <ul id="next-task-list">
-            </ul>
+        <ul id="next-task-list"></ul>
     </div>
 
     <script src="script.js"></script>

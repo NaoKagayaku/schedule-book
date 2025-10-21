@@ -1,654 +1,472 @@
-// --- 実施項目1-1: 現在時刻表示 ---
-const clockElement = document.getElementById('clock');
+document.addEventListener('DOMContentLoaded', () => {
 
-function updateClock() {
-    const now = new Date();
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
-    clockElement.textContent = `${hours}:${minutes}:${seconds}`;
-}
+    // --- グローバル変数・DOM取得 ---
+    let currentDate = new Date();
+    let events = JSON.parse(localStorage.getItem('events')) || {};
+    let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+    let currentSelectedTaskId = null; // 左サイドバーで選択中のタスクID
 
-setInterval(updateClock, 1000);
-updateClock();
+    // 基本 (1-1)
+    const clockElement = document.getElementById('clock');
 
-// --- 共通のDOM要素 & データ ---
-const monthYearElement = document.getElementById('month-year');
-const calendarGridElement = document.getElementById('calendar-grid');
-const prevMonthButton = document.getElementById('prev-month');
-const nextMonthButton = document.getElementById('next-month');
-let currentDate = new Date();
+    // 予定関連 (2, 3, 4)
+    const monthYearElement = document.getElementById('month-year');
+    const calendarGridElement = document.getElementById('calendar-grid');
+    const prevMonthButton = document.getElementById('prev-month');
+    const nextMonthButton = document.getElementById('next-month');
+    const addEventButton = document.getElementById('add-event-button');
+    const eventModal = document.getElementById('event-modal');
+    const eventModalTitle = document.getElementById('event-modal-title');
+    const saveEventButton = document.getElementById('save-event-button');
+    const cancelEventButton = document.getElementById('cancel-event-button');
+    const eventTitleInput = document.getElementById('event-title');
+    const eventDateInput = document.getElementById('event-date');
+    const eventDetailsModal = document.getElementById('event-details-modal');
+    const eventDetailsDate = document.getElementById('event-details-date');
+    const eventDetailsList = document.getElementById('event-details-list');
+    const closeDetailsButton = document.getElementById('close-details-button');
+    let currentEditingEvent = null;
 
-// --- 予定機能 (実施項目 2 & 3) ---
-const addEventButton = document.getElementById('add-event-button');
-const eventModal = document.getElementById('event-modal');
-const saveEventButton = document.getElementById('save-event-button');
-const cancelEventButton = document.getElementById('cancel-event-button');
-const eventTitleInput = document.getElementById('event-title');
-const eventDateInput = document.getElementById('event-date');
-const eventDetailsModal = document.getElementById('event-details-modal'); // ★ 3-2. 追加
-const eventDetailsDate = document.getElementById('event-details-date');   // ★ 3-2. 追加
-const eventDetailsList = document.getElementById('event-details-list');   // ★ 3-2. 追加
-const closeDetailsButton = document.getElementById('close-details-button');
-let events = JSON.parse(localStorage.getItem('events')) || {};
-let currentEditingEvent = null; // ★ 4-2. 現在編集中の予定を保持する変数
+    // タスク関連 (5, 6, 7, 8, 9, 10)
+    const taskListContainer = document.getElementById('task-list-container');
+    const todayTaskSection = document.getElementById('today-task-section');
+    const todayTaskCard = document.getElementById('today-task-card');
+    const noTasksMessage = document.getElementById('no-tasks-message');
+    const newTaskForm = document.getElementById('new-task-form');
 
-// --- タスク機能 (実施項目 5, 6, 8) ---
-const addTaskButton = document.getElementById('add-task-button');
-const taskModal = document.getElementById('task-modal');
-const saveTaskButton = document.getElementById('save-task-button');
-const cancelTaskButton = document.getElementById('cancel-task-button');
-const taskTitleInput = document.getElementById('task-title');
-const taskDueDateInput = document.getElementById('task-due-date');
-const taskTagInput = document.getElementById('task-tag'); // ★ 5-2 更新: タグ入力欄を取得
-const taskPriorityInput = document.getElementById('task-priority');
-const taskListContainer = document.getElementById('task-list-container');
-const nextTaskNotification = document.getElementById('next-task-notification');
-const nextTaskList = document.getElementById('next-task-list');
-const taskDetailsModal = document.getElementById('task-details-modal'); // ★ 6-4. 追加
-const taskDetailsContent = document.getElementById('task-details-content'); // ★ 6-4. 追加
-const closeTaskDetailsButton = document.getElementById('close-task-details-button'); // ★ 6-4. 追加
-let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
-let currentEditingTaskId = null;
-let notificationTimer = null; // ★ 8-2. 通知を管理するためのタイマー変数
+    // 通知 (8-2)
+    const nextTaskNotification = document.getElementById('next-task-notification');
+    const nextTaskList = document.getElementById('next-task-list');
+    let notificationTimer = null;
 
 
-
-/**
- * カレンダーを生成して表示する関数
- */
-function generateCalendar() {
-    calendarGridElement.innerHTML = ''; // グリッドをクリア
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    monthYearElement.textContent = `${year}年 ${month + 1}月`;
-
-    const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
-    dayNames.forEach(day => {
-        const dayNameElement = document.createElement('div');
-        dayNameElement.classList.add('day-name');
-        dayNameElement.textContent = day;
-        calendarGridElement.appendChild(dayNameElement);
-    });
-
-    const firstDayOfMonth = new Date(year, month, 1);
-    const lastDayOfMonth = new Date(year, month + 1, 0);
-    const startDayOfWeek = firstDayOfMonth.getDay();
-
-    for (let i = 0; i < startDayOfWeek; i++) {
-        const dayElement = document.createElement('div');
-        dayElement.classList.add('day', 'other-month');
-        calendarGridElement.appendChild(dayElement);
+    // --- 1. 基本機能 (1-1) ---
+    function updateClock() {
+        const now = new Date();
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        clockElement.textContent = `${hours}:${minutes}:${seconds}`;
     }
 
-    for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
-        const dayElement = document.createElement('div');
-        dayElement.classList.add('day');
-        dayElement.textContent = day;
-
-        const today = new Date();
-        if (year === today.getFullYear() && month === today.getMonth() && day === today.getDate()) {
-            dayElement.classList.add('current-day');
+    // --- 2. 予定管理 (2, 3, 4) ---
+    function renderCalendar() {
+        calendarGridElement.innerHTML = '';
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        monthYearElement.textContent = `${year}年 ${month + 1}月`;
+        const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+        dayNames.forEach(day => {
+            const dayNameElement = document.createElement('div');
+            dayNameElement.classList.add('day-name');
+            dayNameElement.textContent = day;
+            calendarGridElement.appendChild(dayNameElement);
+        });
+        const firstDayOfMonth = new Date(year, month, 1);
+        const lastDayOfMonth = new Date(year, month + 1, 0);
+        const startDayOfWeek = firstDayOfMonth.getDay();
+        for (let i = 0; i < startDayOfWeek; i++) {
+            const dayElement = document.createElement('div');
+            dayElement.classList.add('day', 'other-month');
+            calendarGridElement.appendChild(dayElement);
         }
-
-        const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        if (events[dateString] && events[dateString].length > 0) {
-            dayElement.classList.add('event-day');
-
-            // ★ 3-2. 予定がある日をクリックしたら詳細表示モーダルを開く
-            dayElement.addEventListener('click', () => {
-                showEventDetails(dateString);
-            });
+        for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
+            const dayElement = document.createElement('div');
+            dayElement.classList.add('day');
+            dayElement.textContent = day;
+            const today = new Date();
+            if (year === today.getFullYear() && month === today.getMonth() && day === today.getDate()) {
+                dayElement.classList.add('current-day');
+            }
+            const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            if (events[dateString] && events[dateString].length > 0) {
+                dayElement.classList.add('event-day');
+                dayElement.addEventListener('click', () => showEventDetails(dateString));
+            }
+            calendarGridElement.appendChild(dayElement);
         }
-        calendarGridElement.appendChild(dayElement);
-    }
-}
-
-// --- 予定モーダルの制御 ---
-/**
- * 4-2. 予定モーダルを開く関数（新規・変更兼用）
- * @param {object | null} event - 変更する予定オブジェクト。新規の場合はnull
- */
-function openEventModal(event = null) {
-    const modalTitle = eventModal.querySelector('h2');
-    if (event) {
-        // 変更モード
-        modalTitle.textContent = '予定を変更';
-        currentEditingEvent = event; // 編集中の予定情報をセット
-        eventTitleInput.value = event.title;
-        eventDateInput.value = event.date;
-        eventDateInput.disabled = true; // 日付は変更不可とする
-    } else {
-        // 新規登録モード
-        modalTitle.textContent = '予定を登録';
-        currentEditingEvent = null;
-        eventTitleInput.value = '';
-        eventDateInput.value = new Date().toISOString().split('T')[0];
-        eventDateInput.disabled = false;
-    }
-    eventModal.classList.remove('hidden');
-}
-
-function closeEventModal() {
-    eventModal.classList.add('hidden');
-}
-
-/**
- * 4-4. 予定を保存または更新する関数
- */
-function saveEvent() {
-    const title = eventTitleInput.value.trim();
-    const date = eventDateInput.value;
-
-    if (!title || !date) {
-        alert('タイトルと日付を入力してください。');
-        return;
     }
 
-    if (currentEditingEvent) {
-        // 更新処理
-        // 元のタイトルに一致するものを探して更新
-        const eventsOnDate = events[currentEditingEvent.date];
-        const eventToUpdate = eventsOnDate.find(e => e.title === currentEditingEvent.title);
-        if (eventToUpdate) {
-            eventToUpdate.title = title;
+    function openEventModal(event = null) {
+        if (event) {
+            eventModalTitle.textContent = '予定を変更';
+            currentEditingEvent = event;
+            eventTitleInput.value = event.title;
+            eventDateInput.value = event.date;
+            eventDateInput.disabled = true;
+        } else {
+            eventModalTitle.textContent = '予定を登録';
+            currentEditingEvent = null;
+            eventTitleInput.value = '';
+            eventDateInput.value = new Date().toISOString().split('T')[0];
+            eventDateInput.disabled = false;
         }
-    } else {
-        // 新規保存処理
-        if (!events[date]) events[date] = [];
-        // idの代わりにタイトルをキーとする（簡易的な実装）
-        events[date].push({ title: title });
+        eventModal.classList.remove('hidden');
     }
+    function closeEventModal() { eventModal.classList.add('hidden'); }
 
-    localStorage.setItem('events', JSON.stringify(events));
-    closeEventModal();
-    generateCalendar();
-
-    // 詳細モーダルが開いていれば、そちらも更新する
-    if (!eventDetailsModal.classList.contains('hidden')) {
-        const modalDate = eventDetailsDate.textContent;
-        showEventDetails(modalDate);
-    }
-}
-
-
-/**
- * 4-4. 予定を削除する関数
- * @param {string} dateString - 予定の日付 (YYYY-MM-DD)
- * @param {string} eventTitle - 削除する予定のタイトル
- */
-function deleteEvent(dateString, eventTitle) {
-    if (confirm(`予定「${eventTitle}」を削除しますか？`)) {
-        // 指定された日付の予定リストから、該当タイトル以外のものだけを残す
-        events[dateString] = events[dateString].filter(e => e.title !== eventTitle);
-
-        // もしその日の予定が全てなくなったら、その日付自体のキーを削除
-        if (events[dateString].length === 0) {
-            delete events[dateString];
+    function saveEvent() {
+        const title = eventTitleInput.value.trim();
+        const date = eventDateInput.value;
+        if (!title || !date) { alert('タイトルと日付を入力してください。'); return; }
+        if (currentEditingEvent) {
+            const eventsOnDate = events[currentEditingEvent.date];
+            const eventToUpdate = eventsOnDate.find(e => e.title === currentEditingEvent.title);
+            if (eventToUpdate) eventToUpdate.title = title;
+        } else {
+            if (!events[date]) events[date] = [];
+            events[date].push({ title: title });
         }
-
         localStorage.setItem('events', JSON.stringify(events));
-
-        // カレンダーと詳細モーダルを更新
-        generateCalendar();
-        showEventDetails(dateString);
-    }
-}
-
-
-// --- 予定詳細モーダルの制御 ---
-function showEventDetails(dateString) {
-    const eventsForDate = events[dateString];
-    // ★ 予定が削除されて空になった場合を考慮
-    if (!eventsForDate || eventsForDate.length === 0) {
-        closeEventDetailsModal(); // 表示する予定がなければモーダルを閉じる
-        return;
+        closeEventModal();
+        renderCalendar();
+        if (!eventDetailsModal.classList.contains('hidden')) {
+            showEventDetails(eventDetailsDate.textContent);
+        }
     }
 
-    eventDetailsDate.textContent = dateString;
-    eventDetailsList.innerHTML = '';
-    const ul = document.createElement('ul');
-
-    eventsForDate.forEach(event => {
-        const li = document.createElement('li');
-
-        const eventTitleSpan = document.createElement('span');
-        eventTitleSpan.textContent = event.title;
-
-        // ★ 4-1. 変更・削除ボタン用のコンテナ
-        const actionsDiv = document.createElement('div');
-        actionsDiv.classList.add('event-actions');
-
-        // 変更ボタン
-        const editBtn = document.createElement('button');
-        editBtn.textContent = '変更';
-        editBtn.classList.add('event-btn', 'edit-event-btn');
-        editBtn.onclick = () => {
-            // 変更のために、日付と元のタイトルを渡す
-            openEventModal({ title: event.title, date: dateString });
-        };
-
-        // 削除ボタン
-        const deleteBtn = document.createElement('button');
-        deleteBtn.textContent = '削除';
-        deleteBtn.classList.add('event-btn', 'delete-event-btn');
-        deleteBtn.onclick = () => {
-            deleteEvent(dateString, event.title);
-        };
-
-        actionsDiv.appendChild(editBtn);
-        actionsDiv.appendChild(deleteBtn);
-
-        li.appendChild(eventTitleSpan);
-        li.appendChild(actionsDiv);
-        ul.appendChild(li);
-    });
-    eventDetailsList.appendChild(ul);
-    eventDetailsModal.classList.remove('hidden');
-}
-
-/**
- * 予定詳細モーダルを閉じる関数
- */
-function closeEventDetailsModal() {
-    eventDetailsModal.classList.add('hidden');
-}
-
-// ★ 6-4. タスク詳細モーダルの制御
-/**
- * 特定のタスクの詳細を表示する関数
- * @param {number} taskId - 表示するタスクのID
- */
-function showTaskDetails(taskId) {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    const priorityMap = { high: '高', medium: '中', low: '低' };
-
-    // ★ 5-2 更新: タグの表示を追加
-    taskDetailsContent.innerHTML = `
-        <p><strong>タスク名:</strong> ${task.title}</p>
-        <p><strong>期　限:</strong> ${task.dueDate}</p>
-        <p><strong>タ　グ:</strong> ${task.tag || 'なし'}</p>
-        <p><strong>優先度:</strong> ${priorityMap[task.priority]}</p>
-        <p><strong>状　態:</strong> ${task.completed ? '完了' : '未完了'}</p>
-    `;
-
-    // モーダルを表示
-    taskDetailsModal.classList.remove('hidden');
-}
-
-/**
- * タスク詳細モーダルを閉じる関数
- */
-function closeTaskDetailsModal() {
-    taskDetailsModal.classList.add('hidden');
-}
-
-/**
- * ★ 10-1. タスクの重要度スコアを計算するヘルパー関数
- * @param {object} task - スコアを計算するタスクオブジェクト
- * @returns {number} 算出された重要度スコア
- */
-function calculateImportanceScore(task) {
-    // --- パラメータ設定 ---
-    // 優先度の重み付け（高=3, 中=2, 低=1）
-    const priorityMap = { high: 3, medium: 2, low: 1 };
-    // スコア計算式の重み
-    const PRIORITY_WEIGHT = 3; // 優先度の重み
-    const DEADLINE_WEIGHT = 5; // 期限の重み
-    // 期限切れタスクに与える期限スコア (今日が期限のスコアは1.0)
-    const OVERDUE_DEADLINE_SCORE = 3.0;
-
-    // --- 1. 優先度スコアの計算 ---
-    const priorityScore = priorityMap[task.priority] || 1;
-
-    // --- 2. 期限までの日数スコアの計算 ---
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // 時刻をリセットして日付のみで比較
-    const dueDate = new Date(task.dueDate);
-    dueDate.setHours(0, 0, 0, 0);
-
-    // 今日と期限日の差を日数で計算
-    const diffTime = dueDate.getTime() - today.getTime();
-    const diffInDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-
-    let deadlineScore;
-    if (diffInDays < 0) {
-        // 期限切れの場合
-        deadlineScore = OVERDUE_DEADLINE_SCORE;
-    } else {
-        // 期限内の場合 (今日を含む)
-        // 1 / (期限までの日数 + 1)
-        deadlineScore = 1 / (diffInDays + 1);
+    function deleteEvent(dateString, eventTitle) {
+        if (confirm(`予定「${eventTitle}」を削除しますか？`)) {
+            events[dateString] = events[dateString].filter(e => e.title !== eventTitle);
+            if (events[dateString].length === 0) delete events[dateString];
+            localStorage.setItem('events', JSON.stringify(events));
+            renderCalendar();
+            showEventDetails(dateString);
+        }
     }
 
-    // --- 3. 総合スコアの計算 ---
-    // 重要度スコア = (優先度の重み * 優先度スコア) + (期限の重み * 期限スコア)
-    const totalScore = (PRIORITY_WEIGHT * priorityScore) + (DEADLINE_WEIGHT * deadlineScore);
+    function showEventDetails(dateString) {
+        const eventsForDate = events[dateString];
+        if (!eventsForDate || eventsForDate.length === 0) {
+            closeEventDetailsModal(); return;
+        }
+        eventDetailsDate.textContent = dateString;
+        eventDetailsList.innerHTML = '';
+        const ul = document.createElement('ul');
+        eventsForDate.forEach(event => {
+            const li = document.createElement('li');
+            const eventTitleSpan = document.createElement('span');
+            eventTitleSpan.textContent = event.title;
+            const actionsDiv = document.createElement('div');
+            actionsDiv.classList.add('event-actions');
+            const editBtn = document.createElement('button');
+            editBtn.textContent = '変更';
+            editBtn.classList.add('event-btn', 'edit-event-btn');
+            editBtn.onclick = () => openEventModal({ title: event.title, date: dateString });
+            const deleteBtn = document.createElement('button');
+            deleteBtn.textContent = '削除';
+            deleteBtn.classList.add('event-btn', 'delete-event-btn');
+            deleteBtn.onclick = () => deleteEvent(dateString, event.title);
+            actionsDiv.appendChild(editBtn); actionsDiv.appendChild(deleteBtn);
+            li.appendChild(eventTitleSpan); li.appendChild(actionsDiv);
+            ul.appendChild(li);
+        });
+        eventDetailsList.appendChild(ul);
+        eventDetailsModal.classList.remove('hidden');
+    }
+    function closeEventDetailsModal() { eventDetailsModal.classList.add('hidden'); }
 
-    return totalScore;
-}
 
-/**
- * ★ 10-1 (旧6-1). タスクを「重要度スコア」に基づいてソートする関数
- * @param {Array} tasksArray - ソート対象のタスク配列
- * @returns {Array} ソート済みのタスク配列
- */
-function sortTasks(tasksArray) {
+    // --- 3. タスク管理 (5, 6, 7, 8, 9, 10) ---
 
-    // 1. 未完了タスクと完了タスクに分離
-    const incompleteTasks = tasksArray.filter(t => !t.completed);
-    const completedTasks = tasksArray.filter(t => t.completed);
-
-    // 2. 未完了タスクを「重要度スコア」の降順（高い順）でソート
-    incompleteTasks.sort((a, b) => {
-        const scoreA = calculateImportanceScore(a);
-        const scoreB = calculateImportanceScore(b);
-        return scoreB - scoreA; // スコアが高い方を前に
-    });
-
-    // 3. 完了タスクは期限の昇順（古い順）でソート
-    completedTasks.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
-
-    // 4. 未完了タスクを先に、完了タスクを後に結合して返す
-    return [...incompleteTasks, ...completedTasks];
-}
-
-/**
- * ★ 8-2. 次のタスクを通知する関数
- */
-function showNextTasksNotification() {
-    // 既存のタイマーがあればクリア（連続で完了した場合に対応）
-    if (notificationTimer) {
-        clearTimeout(notificationTimer);
+    /**
+     * 10-1. 重要度スコア計算
+     */
+    function calculateImportanceScore(task) {
+        const priorityMap = { high: 3, medium: 2, low: 1 };
+        const PRIORITY_WEIGHT = 3;
+        const DEADLINE_WEIGHT = 5;
+        const OVERDUE_DEADLINE_SCORE = 3.0;
+        const priorityScore = priorityMap[task.priority] || 1;
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const dueDate = new Date(task.dueDate); dueDate.setHours(0, 0, 0, 0);
+        const diffTime = dueDate.getTime() - today.getTime();
+        const diffInDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+        let deadlineScore;
+        if (diffInDays < 0) { deadlineScore = OVERDUE_DEADLINE_SCORE; }
+        else { deadlineScore = 1 / (diffInDays + 1); }
+        return (PRIORITY_WEIGHT * priorityScore) + (DEADLINE_WEIGHT * deadlineScore);
     }
 
-    // 未完了タスクをフィルタリングしてソート
-    const upcomingTasks = sortTasks(tasks.filter(t => !t.completed));
-
-    // 表示するタスクがなければ何もしない
-    if (upcomingTasks.length === 0) {
-        return;
+    /**
+     * 10-1. タスクソート
+     */
+    function sortTasks(tasksArray) {
+        const incompleteTasks = tasksArray.filter(t => !t.completed);
+        const completedTasks = tasksArray.filter(t => t.completed);
+        incompleteTasks.sort((a, b) => calculateImportanceScore(b) - calculateImportanceScore(a));
+        completedTasks.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+        return [...incompleteTasks, ...completedTasks];
     }
 
-    // 次のタスクを最大3件取得
-    const tasksToShow = upcomingTasks.slice(0, 3);
+    /**
+     * (新) 左サイドバーのタスク一覧を描画
+     */
+    function renderTaskList() {
+        taskListContainer.innerHTML = '';
+        const sortedTasks = sortTasks(tasks);
 
-    // リストを生成
-    nextTaskList.innerHTML = '';
-    tasksToShow.forEach(task => {
-        const li = document.createElement('li');
-        li.textContent = task.title;
-        nextTaskList.appendChild(li);
-    });
-
-    // 通知を表示
-    nextTaskNotification.classList.remove('hidden');
-    // 少し遅延させてからvisibleクラスを追加し、CSSアニメーションをトリガー
-    setTimeout(() => {
-        nextTaskNotification.classList.add('visible');
-    }, 10);
-
-    // 5秒後に通知を非表示にする
-    notificationTimer = setTimeout(() => {
-        nextTaskNotification.classList.remove('visible');
-        // アニメーションが終わるのを待ってからhiddenクラスを追加
-        setTimeout(() => {
-            nextTaskNotification.classList.add('hidden');
-        }, 500); // CSSのtransition時間と合わせる
-    }, 5000);
-}
-
-/**
- * 9-1. 期限切れタスクの数に応じてテーマを更新する関数
- */
-function updateTheme() {
-    const today = new Date();
-    // 時刻情報をリセットして、日付のみで比較できるようにする
-    today.setHours(0, 0, 0, 0);
-
-    // 未完了かつ期限切れのタスクをカウント
-    const overdueTasksCount = tasks.filter(task => {
-        const dueDate = new Date(task.dueDate);
-        return !task.completed && dueDate < today;
-    }).length;
-
-    const body = document.body;
-
-    // 既存のテーマクラスを全て削除
-    body.classList.remove('theme-warning', 'theme-alert');
-
-    // 期限切れタスクの数に応じて新しいクラスを追加
-    if (overdueTasksCount > 3) { // 4件以上で危険
-        body.classList.add('theme-alert');
-    } else if (overdueTasksCount > 0) { // 1件以上で警告
-        body.classList.add('theme-warning');
-    }
-    // 0件の場合はクラスなし（デフォルトテーマ）
-}
-
-/**
- * 8-1. タスクの完了状態を切り替える関数
- * (変更なし。この関数は内部で renderTasks を呼び出し、
- * renderTasks が sortTasks を呼び出すため、自動的にソートに反映される)
- */
-function toggleTaskComplete(taskId) {
-    const task = tasks.find(t => t.id === taskId);
-    if (task) {
-        const wasIncomplete = !task.completed;
-        task.completed = !task.completed;
-
-        if (wasIncomplete && task.completed) {
-            showNextTasksNotification();
+        if (sortedTasks.length === 0) {
+            taskListContainer.innerHTML = '<p>タスクはありません。</p>';
+            return;
         }
 
-        localStorage.setItem('tasks', JSON.stringify(tasks));
-        renderTasks();
-        updateTheme(); // ★ 9-1. テーマを更新
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+
+        sortedTasks.forEach(task => {
+            const taskItem = document.createElement('div');
+            taskItem.classList.add('task-item');
+            taskItem.dataset.taskId = task.id;
+
+            // 優先度・期限切れハイライト
+            const dueDate = new Date(task.dueDate); dueDate.setHours(0, 0, 0, 0);
+            if (!task.completed && dueDate < today) {
+                taskItem.classList.add('overdue');
+            } else {
+                taskItem.classList.add(`priority-${task.priority}`);
+            }
+
+            // 完了状態
+            if (task.completed) taskItem.classList.add('completed');
+
+            // 選択中ハイライト
+            if (task.id === currentSelectedTaskId) taskItem.classList.add('selected');
+
+            // タイトル
+            const title = document.createElement('div');
+            title.classList.add('task-title');
+            title.textContent = task.title;
+
+            // 期限
+            const dueDateEl = document.createElement('div');
+            dueDateEl.classList.add('task-due-date');
+            dueDateEl.textContent = `期限: ${task.dueDate}`;
+
+            // 進捗バー (ダミー)
+            const progressBar = document.createElement('div');
+            progressBar.classList.add('progress-bar');
+            const progressInner = document.createElement('div');
+            progressInner.classList.add('progress-bar-inner');
+            progressInner.style.width = task.completed ? '100%' : '10%'; // 簡易表示
+            progressBar.appendChild(progressInner);
+
+            taskItem.appendChild(title);
+            taskItem.appendChild(dueDateEl);
+            taskItem.appendChild(progressBar);
+
+            // クリックで中央に詳細表示
+            taskItem.addEventListener('click', () => {
+                showTaskInMainArea(task.id);
+            });
+
+            taskListContainer.appendChild(taskItem);
+        });
     }
-}
 
-/**
- * タスクを削除する関数
- */
-function deleteTask(taskId) {
-    if (confirm('このタスクを本当に削除しますか？')) {
-        tasks = tasks.filter(t => t.id !== taskId);
-        localStorage.setItem('tasks', JSON.stringify(tasks));
-        renderTasks();
-        updateTheme(); // ★ 9-1. テーマを更新
-    }
-}
+    /**
+     * (新) 中央エリアにタスク詳細を表示
+     */
+    function showTaskInMainArea(taskId) {
+        currentSelectedTaskId = taskId; // 選択中のIDを更新
+        renderTaskList(); // サイドバーの選択ハイライトを更新
 
-
-/**
- * タスクリストを画面に表示する関数
- */
-function renderTasks() {
-    taskListContainer.innerHTML = '';
-    const sortedTasks = sortTasks(tasks);
-
-    if (sortedTasks.length === 0) {
-        taskListContainer.innerHTML = '<p>登録されているタスクはありません。</p>';
-        return;
-    }
-
-    const topPriorityTask = sortedTasks.find(task => !task.completed);
-
-    sortedTasks.forEach(task => {
-        const taskItem = document.createElement('div');
-        taskItem.classList.add('task-item', `priority-${task.priority}`);
-        if (task.completed) taskItem.classList.add('task-completed');
-        if (topPriorityTask && task.id === topPriorityTask.id) {
-            taskItem.classList.add('top-priority-task');
+        const task = tasks.find(t => t.id === taskId);
+        if (!task) {
+            todayTaskCard.classList.add('hidden');
+            noTasksMessage.classList.remove('hidden');
+            return;
         }
 
-        const taskDetails = document.createElement('div');
-        taskDetails.classList.add('task-details');
-		// ★ 6-4. タスク詳細部分にクリックイベントを追加
-        taskDetails.addEventListener('click', () => showTaskDetails(task.id));
+        const priorityMap = { high: '高', medium: '中', low: '低' };
 
-        const taskTitle = document.createElement('div');
-        taskTitle.classList.add('task-title');
-        taskTitle.textContent = task.title;
-        const taskDueDate = document.createElement('div');
-        taskDueDate.classList.add('task-due-date');
-        taskDueDate.textContent = `期限: ${task.dueDate}`;
-        taskDetails.appendChild(taskTitle);
-        taskDetails.appendChild(taskDueDate);
+        todayTaskCard.innerHTML = `
+            <h3>${task.title}</h3>
+            <p><strong>期限:</strong> ${task.dueDate}</p>
+            <p><strong>優先度:</strong> ${priorityMap[task.priority]}</p>
+            <p><strong>タグ:</strong> ${task.tag || 'なし'}</p>
+            <p><strong>状態:</strong> ${task.completed ? '完了' : '未完了'}</p>
+            <div class="task-actions">
+                <button class="task-btn complete-btn" data-id="${task.id}">
+                    ${task.completed ? '未完了に戻す' : '完了する'}
+                </button>
+                <button class="task-btn delete-btn" data-id="${task.id}">削除</button>
+            </div>
+        `;
 
-        // ★ 7-1. ボタンをまとめるコンテナ
-        const taskActions = document.createElement('div');
-        taskActions.classList.add('task-actions');
+        // ボタンにイベントリスナーを付与
+        todayTaskCard.querySelector('.complete-btn').addEventListener('click', () => {
+            toggleTaskComplete(task.id);
+        });
+        todayTaskCard.querySelector('.delete-btn').addEventListener('click', () => {
+            deleteTask(task.id);
+        });
 
-        // 完了ボタン
-        const completeButton = document.createElement('button');
-        completeButton.classList.add('task-btn', 'complete-btn');
-        completeButton.textContent = task.completed ? '戻す' : '完了';
-        completeButton.addEventListener('click', () => toggleTaskComplete(task.id));
-
-        // ★ 7-1. 変更ボタン
-        const editButton = document.createElement('button');
-        editButton.classList.add('task-btn', 'edit-btn');
-        editButton.textContent = '変更';
-        editButton.addEventListener('click', () => openTaskModal(task)); // ★ 7-2. 変更モードでモーダルを開く
-
-        // ★ 7-1. 削除ボタン
-        const deleteButton = document.createElement('button');
-        deleteButton.classList.add('task-btn', 'delete-btn');
-        deleteButton.textContent = '削除';
-        deleteButton.addEventListener('click', () => deleteTask(task.id));
-
-        // コンテナにボタンを追加
-        taskActions.appendChild(completeButton);
-        taskActions.appendChild(editButton);
-        taskActions.appendChild(deleteButton);
-
-        // 組み立て
-        taskItem.appendChild(taskDetails);
-        taskItem.appendChild(taskActions);
-        taskListContainer.appendChild(taskItem);
-    });
-}
-
-
-/**
- * 7-2. タスクモーダルを開く関数（新規・変更兼用）
- */
-function openTaskModal(task = null) {
-    const modalTitle = taskModal.querySelector('h2');
-    if (task) {
-        // 変更モード
-        modalTitle.textContent = 'タスクを変更';
-        currentEditingTaskId = task.id;
-        taskTitleInput.value = task.title;
-        taskDueDateInput.value = task.dueDate;
-        taskTagInput.value = task.tag || ''; // ★ 5-2 更新: タグ情報をセット
-        taskPriorityInput.value = task.priority;
-    } else {
-        // 新規登録モード
-        modalTitle.textContent = 'タスクを登録';
-        currentEditingTaskId = null;
-        taskTitleInput.value = '';
-        taskDueDateInput.value = new Date().toISOString().split('T')[0];
-        taskTagInput.value = ''; // ★ 5-2 更新: タグ入力欄をクリア
-        taskPriorityInput.value = 'medium';
-    }
-    taskModal.classList.remove('hidden');
-}
-
-function closeTaskModal() {
-    taskModal.classList.add('hidden');
-    currentEditingTaskId = null; // 閉じるときは必ず編集IDをクリア
-}
-
-/**
- * 7-4. タスクを保存または更新する関数
- */
-function saveTask() {
-    const title = taskTitleInput.value.trim();
-    const dueDate = taskDueDateInput.value;
-    const tag = taskTagInput.value.trim(); // ★ 5-2 更新: タグの値を取得
-    const priority = taskPriorityInput.value;
-
-    if (!title || !dueDate) {
-        alert('タスク名と期限を入力してください。');
-        return;
+        todayTaskCard.classList.remove('hidden');
+        noTasksMessage.classList.add('hidden');
     }
 
-    if (currentEditingTaskId) {
-        // 更新処理
-        const task = tasks.find(t => t.id === currentEditingTaskId);
-        if (task) {
-            task.title = title;
-            task.dueDate = dueDate;
-            task.tag = tag; // ★ 5-2 更新: タグを更新
-            task.priority = priority;
+    /**
+     * (新) 「次にやるべきタスク」を自動表示・更新
+     */
+    function updateTodayTask() {
+        const sortedTasks = sortTasks(tasks);
+        const nextTask = sortedTasks.find(t => !t.completed); // 最初の未完了タスク
+
+        if (nextTask) {
+            showTaskInMainArea(nextTask.id);
+        } else {
+            // 未完了タスクが0の場合
+            currentSelectedTaskId = null;
+            todayTaskCard.classList.add('hidden');
+            noTasksMessage.classList.remove('hidden');
         }
-    } else {
-        // 新規保存処理
+    }
+
+    /**
+     * (新) 右サイドバーのフォームでタスクを保存 (5-3)
+     */
+    function handleTaskFormSubmit(e) {
+        e.preventDefault();
+
+        const title = document.getElementById('new-task-title').value.trim();
+        const dueDate = document.getElementById('new-task-due-date').value;
+        const priority = document.getElementById('new-task-priority').value;
+        const tag = document.getElementById('new-task-tag').value;
+
+        if (!title || !dueDate) {
+            alert('タスク名と期限を入力してください。');
+            return;
+        }
+
         const newTask = {
             id: Date.now(),
             title: title,
             dueDate: dueDate,
-            tag: tag, // ★ 5-2 更新: タグを保存
             priority: priority,
+            tag: tag,
             completed: false
         };
+
         tasks.push(newTask);
+        localStorage.setItem('tasks', JSON.stringify(tasks));
+
+        // フォームをリセット
+        newTaskForm.reset();
+        document.getElementById('new-task-due-date').value = ''; // dateはreset()で消えないことがある
+
+        // UIを更新
+        renderTaskList();
+        updateTodayTask();
+        updateTheme();
     }
 
-    localStorage.setItem('tasks', JSON.stringify(tasks));
-    closeTaskModal();
-    renderTasks();
+    /**
+     * 8-1. タスク完了
+     */
+    function toggleTaskComplete(taskId) {
+        const task = tasks.find(t => t.id === taskId);
+        if (task) {
+            const wasIncomplete = !task.completed;
+            task.completed = !task.completed;
+            if (wasIncomplete && task.completed) {
+                showNextTasksNotification(); // 8-2
+            }
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+
+            // UI更新
+            renderTaskList();
+            updateTodayTask(); // 次のタスクを表示
+            updateTheme(); // 9-1
+        }
+    }
+
+    /**
+     * 7-4. タスク削除
+     */
+    function deleteTask(taskId) {
+        if (confirm('このタスクを本当に削除しますか？')) {
+            tasks = tasks.filter(t => t.id !== taskId);
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+
+            // UI更新
+            renderTaskList();
+            updateTodayTask(); // 次のタスクを表示
+            updateTheme(); // 9-1
+        }
+    }
+
+    /**
+     * 8-2. タスク完了通知
+     */
+    function showNextTasksNotification() {
+        if (notificationTimer) clearTimeout(notificationTimer);
+        const upcomingTasks = sortTasks(tasks.filter(t => !t.completed));
+        if (upcomingTasks.length === 0) return;
+        const tasksToShow = upcomingTasks.slice(0, 3);
+        nextTaskList.innerHTML = '';
+        tasksToShow.forEach(task => {
+            const li = document.createElement('li');
+            li.textContent = task.title;
+            nextTaskList.appendChild(li);
+        });
+        nextTaskNotification.classList.remove('hidden');
+        setTimeout(() => nextTaskNotification.classList.add('visible'), 10);
+        notificationTimer = setTimeout(() => {
+            nextTaskNotification.classList.remove('visible');
+            setTimeout(() => nextTaskNotification.classList.add('hidden'), 500);
+        }, 5000);
+    }
+
+    /**
+     * 9-1. テーマ更新
+     */
+    function updateTheme() {
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const overdueTasksCount = tasks.filter(task => {
+            const dueDate = new Date(task.dueDate);
+            return !task.completed && dueDate < today;
+        }).length;
+        const body = document.body;
+        body.classList.remove('theme-warning', 'theme-alert');
+        if (overdueTasksCount > 3) { body.classList.add('theme-alert'); }
+        else if (overdueTasksCount > 0) { body.classList.add('theme-warning'); }
+    }
+
+
+    // --- 4. イベントリスナー初期設定 ---
+
+    // 基本
+    setInterval(updateClock, 1000);
+
+    // 予定関連
+    prevMonthButton.addEventListener('click', () => {
+        currentDate.setMonth(currentDate.getMonth() - 1);
+        renderCalendar();
+    });
+    nextMonthButton.addEventListener('click', () => {
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        renderCalendar();
+    });
+    addEventButton.addEventListener('click', () => openEventModal());
+    cancelEventButton.addEventListener('click', closeEventModal);
+    saveEventButton.addEventListener('click', saveEvent);
+    eventModal.addEventListener('click', (e) => {
+        if (e.target === eventModal) closeEventModal();
+    });
+    closeDetailsButton.addEventListener('click', closeEventDetailsModal);
+    eventDetailsModal.addEventListener('click', (e) => {
+        if (e.target === eventDetailsModal) closeEventDetailsModal();
+    });
+
+    // タスク関連
+    newTaskForm.addEventListener('submit', handleTaskFormSubmit);
+
+
+    // --- 5. 初期表示実行 ---
+    updateClock();
+    renderCalendar();
+    renderTaskList();
+    updateTodayTask();
     updateTheme();
-}
 
-
-// --- イベントリスナーの設定 ---
-prevMonthButton.addEventListener('click', () => {
-    currentDate.setMonth(currentDate.getMonth() - 1);
-    generateCalendar();
 });
-nextMonthButton.addEventListener('click', () => {
-    currentDate.setMonth(currentDate.getMonth() + 1);
-    generateCalendar();
-});
-
-// 予定関連
-addEventButton.addEventListener('click', () => openEventModal()); // ★引数なしで呼び出し
-cancelEventButton.addEventListener('click', closeEventModal); // ★cancelButtonから名称変更
-saveEventButton.addEventListener('click', saveEvent);
-eventModal.addEventListener('click', (e) => {
-    if (e.target === eventModal) closeEventModal();
-});
-
-// ★ 3-2. 予定詳細モーダルを閉じるイベントリスナー
-closeDetailsButton.addEventListener('click', closeEventDetailsModal);
-eventDetailsModal.addEventListener('click', (e) => {
-    if (e.target === eventDetailsModal) {
-        closeEventDetailsModal();
-    }
-});
-
-// タスク関連
-addTaskButton.addEventListener('click', () => openTaskModal());
-cancelTaskButton.addEventListener('click', closeTaskModal);
-saveTaskButton.addEventListener('click', saveTask);
-taskModal.addEventListener('click', (e) => {
-    if (e.target === taskModal) closeTaskModal();
-});
-
-// ★ 6-4. タスク詳細モーダルを閉じるイベントリスナー
-closeTaskDetailsButton.addEventListener('click', closeTaskDetailsModal);
-taskDetailsModal.addEventListener('click', (e) => {
-    if (e.target === taskDetailsModal) {
-        closeTaskDetailsModal();
-    }
-});
-
-// --- 初期表示 ---
-generateCalendar();
-renderTasks(); // ★ページ読み込み時にタスクリストを初期表示
-updateTheme(); // ★ 9-1. ページ読み込み時にテーマを初期設定
