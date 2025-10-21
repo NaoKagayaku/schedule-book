@@ -33,12 +33,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const todayTaskCard = document.getElementById('today-task-card');
     const noTasksMessage = document.getElementById('no-tasks-message');
     const newTaskForm = document.getElementById('new-task-form');
+    const newTaskDueDateInput = document.getElementById('new-task-due-date'); // ★ 要求3用
 
     // 通知 (8-2)
     const nextTaskNotification = document.getElementById('next-task-notification');
     const nextTaskList = document.getElementById('next-task-list');
     let notificationTimer = null;
 
+    // --- 0. ヘルパー関数 (新規追加) ---
+
+    /**
+     * ★ (新規) 期限までの残り日数を計算する
+     * @param {string} dueDateString (YYYY-MM-DD)
+     * @returns {number} 残り日数 (今日なら0, 昨日なら-1)
+     */
+    function getDaysUntilDue(dueDateString) {
+        if (!dueDateString) return Infinity;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dueDate = new Date(dueDateString);
+        dueDate.setHours(0, 0, 0, 0);
+
+        const diffTime = dueDate.getTime() - today.getTime();
+        return Math.round(diffTime / (1000 * 60 * 60 * 24));
+    }
 
     // --- 1. 基本機能 (1-1) ---
     function updateClock() {
@@ -202,6 +220,9 @@ document.addEventListener('DOMContentLoaded', () => {
     /**
      * (新) 左サイドバーのタスク一覧を描画
      */
+    /**
+     * ★ (修正) 左サイドバーのタスク一覧を描画 (要求1)
+     */
     function renderTaskList() {
         taskListContainer.innerHTML = '';
         const sortedTasks = sortTasks(tasks);
@@ -211,26 +232,36 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const today = new Date(); today.setHours(0, 0, 0, 0);
-
         sortedTasks.forEach(task => {
             const taskItem = document.createElement('div');
             taskItem.classList.add('task-item');
             taskItem.dataset.taskId = task.id;
 
+            const diffInDays = getDaysUntilDue(task.dueDate);
+
             // 優先度・期限切れハイライト
-            const dueDate = new Date(task.dueDate); dueDate.setHours(0, 0, 0, 0);
-            if (!task.completed && dueDate < today) {
-                taskItem.classList.add('overdue');
+            if (!task.completed && diffInDays < 0) {
+                taskItem.classList.add('overdue'); // 期限切れ
             } else {
                 taskItem.classList.add(`priority-${task.priority}`);
             }
 
-            // 完了状態
             if (task.completed) taskItem.classList.add('completed');
-
-            // 選択中ハイライト
             if (task.id === currentSelectedTaskId) taskItem.classList.add('selected');
+
+            // ★ 要求1: アイコンの追加
+            const icon = document.createElement('span');
+            icon.classList.add('task-icon');
+            if (!task.completed) {
+                if (diffInDays < 0) {
+                    icon.textContent = '🔥'; // 期限切れ
+                } else if (diffInDays <= 3) {
+                    icon.textContent = '⏳'; // 期限間近
+                } else if (task.priority === 'high') {
+                    icon.textContent = '⭐'; // 優先度 高
+                }
+            }
+            taskItem.appendChild(icon);
 
             // タイトル
             const title = document.createElement('div');
@@ -242,19 +273,33 @@ document.addEventListener('DOMContentLoaded', () => {
             dueDateEl.classList.add('task-due-date');
             dueDateEl.textContent = `期限: ${task.dueDate}`;
 
+            taskItem.appendChild(title);
+            taskItem.appendChild(dueDateEl);
+
+            // ★ 要求1: 残り日数の表示
+            if (!task.completed) {
+                const deadlineInfo = document.createElement('div');
+                deadlineInfo.classList.add('task-deadline-info');
+                if (diffInDays < 0) {
+                    deadlineInfo.textContent = `期限切れ (${Math.abs(diffInDays)}日超過)`;
+                } else if (diffInDays === 0) {
+                    deadlineInfo.textContent = '今日が期限です！';
+                } else if (diffInDays <= 7) {
+                    deadlineInfo.textContent = `残り ${diffInDays} 日`;
+                }
+                // 7日より多い場合は表示しない
+                taskItem.appendChild(deadlineInfo);
+            }
+
             // 進捗バー (ダミー)
             const progressBar = document.createElement('div');
             progressBar.classList.add('progress-bar');
             const progressInner = document.createElement('div');
             progressInner.classList.add('progress-bar-inner');
-            progressInner.style.width = task.completed ? '100%' : '10%'; // 簡易表示
+            progressInner.style.width = task.completed ? '100%' : '10%';
             progressBar.appendChild(progressInner);
-
-            taskItem.appendChild(title);
-            taskItem.appendChild(dueDateEl);
             taskItem.appendChild(progressBar);
 
-            // クリックで中央に詳細表示
             taskItem.addEventListener('click', () => {
                 showTaskInMainArea(task.id);
             });
@@ -263,11 +308,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    /**
-     * (新) 中央エリアにタスク詳細を表示
-     */
     function showTaskInMainArea(taskId) {
-        currentSelectedTaskId = taskId; // 選択中のIDを更新
+        currentSelectedTaskId = taskId;
         renderTaskList(); // サイドバーの選択ハイライトを更新
 
         const task = tasks.find(t => t.id === taskId);
@@ -278,6 +320,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const priorityMap = { high: '高', medium: '中', low: '低' };
+        const diffInDays = getDaysUntilDue(task.dueDate);
+
+        // ★ 要求2: 選定理由の判定
+        let reason = '';
+        if (diffInDays < 0) {
+            reason = '理由: 期限が過ぎています！';
+        } else if (diffInDays === 0) {
+            reason = '理由: 今日が期限です！';
+        } else if (diffInDays <= 3) {
+            reason = `理由: 期限が迫っています (残り${diffInDays}日)`;
+        } else if (task.priority === 'high') {
+            reason = '理由: 優先度が高いタスクです';
+        } else {
+            reason = '理由: 次に取り組むタスクです';
+        }
 
         todayTaskCard.innerHTML = `
             <h3>${task.title}</h3>
@@ -285,6 +342,9 @@ document.addEventListener('DOMContentLoaded', () => {
             <p><strong>優先度:</strong> ${priorityMap[task.priority]}</p>
             <p><strong>タグ:</strong> ${task.tag || 'なし'}</p>
             <p><strong>状態:</strong> ${task.completed ? '完了' : '未完了'}</p>
+
+            <p class="task-reason">${reason}</p>
+
             <div class="task-actions">
                 <button class="task-btn complete-btn" data-id="${task.id}">
                     ${task.completed ? '未完了に戻す' : '完了する'}
@@ -293,7 +353,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
 
-        // ボタンにイベントリスナーを付与
+        // ボタンにイベントリスナーを再付与
         todayTaskCard.querySelector('.complete-btn').addEventListener('click', () => {
             toggleTaskComplete(task.id);
         });
@@ -460,7 +520,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // タスク関連
     newTaskForm.addEventListener('submit', handleTaskFormSubmit);
+    // ★ 要求3: タスク入力時のアシスト
+    newTaskDueDateInput.addEventListener('change', () => {
+        if (!newTaskDueDateInput.value) return; // 日付がクリアされた場合は何もしない
 
+        const diffInDays = getDaysUntilDue(newTaskDueDateInput.value);
+
+        // 期限が未来かつ7日以内 (0 <= diff <= 7) の場合に通知
+        if (diffInDays >= 0 && diffInDays <= 7) {
+            // alertはUXが良くないので、console.logに変更（または簡易なメッセージ要素をHTMLに追加）
+            console.log('入力アシスト: このタスクは緊急性が高いと判断されます。');
+
+            // alertを使用する場合:
+            // alert('このタスクは緊急性が高いと判断されます。\n（期限が1週間以内に設定されました）');
+        }
+    });
 
     // --- 5. 初期表示実行 ---
     updateClock();

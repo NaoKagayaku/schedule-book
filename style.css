@@ -72,6 +72,7 @@ h2 {
     cursor: pointer;
     transition: box-shadow 0.3s, border-color 0.3s;
     border-left-width: 5px;
+    position: relative; /* ★ アイコン配置のため */
 }
 .task-item:hover {
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
@@ -93,11 +94,41 @@ h2 {
     margin: 4px 0;
 }
 
+/* ★ 要求1: 期限・優先度アイコン */
+.task-icon {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 1.2rem;
+    opacity: 0.8;
+}
+
+/* ★ 要求1: 残り日数テキスト */
+.task-deadline-info {
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: #c9302c; /* 期限が近いので赤系 */
+    margin-top: 5px;
+}
+
+/* ★ 要求1: 優先度高 (太字) */
+.priority-high .task-title {
+    font-weight: 900; /* 通常より太く */
+}
+
 /* 優先度・期限ハイライト */
 .task-item.priority-high { border-left-color: #ffc107; } /* 黄 */
 .task-item.priority-medium { border-left-color: #17a2b8; } /* 青緑 */
 .task-item.priority-low { border-left-color: #28a745; } /* 緑 */
-.task-item.overdue { border-left-color: #dc3545; } /* 赤 (期限切れ) */
+.task-item.overdue {
+    border-left-color: #dc3545; /* 赤 (期限切れ) */
+    background-color: #fff5f5; /* ★ 背景も薄く赤に */
+}
+/* ★ 期限切れタスクの残り日数テキスト */
+.task-item.overdue .task-deadline-info {
+    color: #d00;
+    font-weight: bold;
+}
 
 /* 進捗バー */
 .progress-bar {
@@ -146,6 +177,7 @@ h2 {
 #today-task-card h3 {
     margin: 0 0 10px 0;
     font-size: 1.7rem;
+    max-width: 90%; /* ★ アイコンと被らないように */
 }
 #today-task-card p {
     margin: 8px 0;
@@ -169,6 +201,17 @@ h2 {
 }
 .task-btn:hover {
     transform: translateY(-2px);
+}
+/* ★ 要求2: 選定理由 */
+.task-reason {
+    font-size: 0.95rem;
+    font-weight: bold;
+    background-color: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-top: 15px;
+    display: inline-block;
 }
 .complete-btn {
     background-color: #28a745;
