@@ -40,6 +40,7 @@ const saveTaskButton = document.getElementById('save-task-button');
 const cancelTaskButton = document.getElementById('cancel-task-button');
 const taskTitleInput = document.getElementById('task-title');
 const taskDueDateInput = document.getElementById('task-due-date');
+const taskTagInput = document.getElementById('task-tag'); // ★ 5-2 更新: タグ入力欄を取得
 const taskPriorityInput = document.getElementById('task-priority');
 const taskListContainer = document.getElementById('task-list-container');
 const nextTaskNotification = document.getElementById('next-task-notification');
@@ -253,42 +254,6 @@ function closeEventDetailsModal() {
     eventDetailsModal.classList.add('hidden');
 }
 
-// --- タスクモーダルの制御 ---
-function openTaskModal() {
-    taskTitleInput.value = '';
-    taskDueDateInput.value = new Date().toISOString().split('T')[0];
-    taskPriorityInput.value = 'medium'; // デフォルトは'中'
-    taskModal.classList.remove('hidden');
-}
-function closeTaskModal() {
-    taskModal.classList.add('hidden');
-}
-function saveTask() {
-    const title = taskTitleInput.value.trim();
-    const dueDate = taskDueDateInput.value;
-    const priority = taskPriorityInput.value;
-
-    if (!title || !dueDate) {
-        alert('タスク名と期限を入力してください。');
-        return;
-    }
-
-    const newTask = {
-        id: Date.now(), // ユニークなIDとしてタイムスタンプを使用
-        title: title,
-        dueDate: dueDate,
-        priority: priority,
-        completed: false
-    };
-
-    tasks.push(newTask);
-    localStorage.setItem('tasks', JSON.stringify(tasks));
-
-    alert('タスクを保存しました。'); // 保存完了を通知
-    closeTaskModal();
-    // 現状タスクはカレンダーに表示しないため、カレンダーの再描画は不要
-}
-
 // ★ 6-4. タスク詳細モーダルの制御
 /**
  * 特定のタスクの詳細を表示する関数
@@ -300,10 +265,11 @@ function showTaskDetails(taskId) {
 
     const priorityMap = { high: '高', medium: '中', low: '低' };
 
-    // 詳細情報をHTMLとして生成
+    // ★ 5-2 更新: タグの表示を追加
     taskDetailsContent.innerHTML = `
         <p><strong>タスク名:</strong> ${task.title}</p>
         <p><strong>期　限:</strong> ${task.dueDate}</p>
+        <p><strong>タ　グ:</strong> ${task.tag || 'なし'}</p>
         <p><strong>優先度:</strong> ${priorityMap[task.priority]}</p>
         <p><strong>状　態:</strong> ${task.completed ? '完了' : '未完了'}</p>
     `;
@@ -320,34 +286,73 @@ function closeTaskDetailsModal() {
 }
 
 /**
- * 8-1. タスクの完了状態を考慮してソートする関数
+ * ★ 10-1. タスクの重要度スコアを計算するヘルパー関数
+ * @param {object} task - スコアを計算するタスクオブジェクト
+ * @returns {number} 算出された重要度スコア
+ */
+function calculateImportanceScore(task) {
+    // --- パラメータ設定 ---
+    // 優先度の重み付け（高=3, 中=2, 低=1）
+    const priorityMap = { high: 3, medium: 2, low: 1 };
+    // スコア計算式の重み
+    const PRIORITY_WEIGHT = 3; // 優先度の重み
+    const DEADLINE_WEIGHT = 5; // 期限の重み
+    // 期限切れタスクに与える期限スコア (今日が期限のスコアは1.0)
+    const OVERDUE_DEADLINE_SCORE = 3.0;
+
+    // --- 1. 優先度スコアの計算 ---
+    const priorityScore = priorityMap[task.priority] || 1;
+
+    // --- 2. 期限までの日数スコアの計算 ---
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // 時刻をリセットして日付のみで比較
+    const dueDate = new Date(task.dueDate);
+    dueDate.setHours(0, 0, 0, 0);
+
+    // 今日と期限日の差を日数で計算
+    const diffTime = dueDate.getTime() - today.getTime();
+    const diffInDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+    let deadlineScore;
+    if (diffInDays < 0) {
+        // 期限切れの場合
+        deadlineScore = OVERDUE_DEADLINE_SCORE;
+    } else {
+        // 期限内の場合 (今日を含む)
+        // 1 / (期限までの日数 + 1)
+        deadlineScore = 1 / (diffInDays + 1);
+    }
+
+    // --- 3. 総合スコアの計算 ---
+    // 重要度スコア = (優先度の重み * 優先度スコア) + (期限の重み * 期限スコア)
+    const totalScore = (PRIORITY_WEIGHT * priorityScore) + (DEADLINE_WEIGHT * deadlineScore);
+
+    return totalScore;
+}
+
+/**
+ * ★ 10-1 (旧6-1). タスクを「重要度スコア」に基づいてソートする関数
  * @param {Array} tasksArray - ソート対象のタスク配列
  * @returns {Array} ソート済みのタスク配列
  */
 function sortTasks(tasksArray) {
-    const priorityMap = { high: 1, medium: 2, low: 3 };
 
-    return tasksArray.sort((a, b) => {
-        // 完了状態を比較 (未完了が先)
-        if (a.completed !== b.completed) {
-            return a.completed ? 1 : -1;
-        }
+    // 1. 未完了タスクと完了タスクに分離
+    const incompleteTasks = tasksArray.filter(t => !t.completed);
+    const completedTasks = tasksArray.filter(t => t.completed);
 
-        // --- 以下は未完了タスク同士、または完了タスク同士の比較 ---
-        // 期限日で比較
-        const dateA = new Date(a.dueDate);
-        const dateB = new Date(b.dueDate);
-        if (dateA < dateB) return -1;
-        if (dateA > dateB) return 1;
-
-        // 期限日が同じ場合は優先度で比較
-        const priorityA = priorityMap[a.priority];
-        const priorityB = priorityMap[b.priority];
-        if (priorityA < priorityB) return -1;
-        if (priorityA > priorityB) return 1;
-
-        return 0;
+    // 2. 未完了タスクを「重要度スコア」の降順（高い順）でソート
+    incompleteTasks.sort((a, b) => {
+        const scoreA = calculateImportanceScore(a);
+        const scoreB = calculateImportanceScore(b);
+        return scoreB - scoreA; // スコアが高い方を前に
     });
+
+    // 3. 完了タスクは期限の昇順（古い順）でソート
+    completedTasks.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+
+    // 4. 未完了タスクを先に、完了タスクを後に結合して返す
+    return [...incompleteTasks, ...completedTasks];
 }
 
 /**
@@ -424,7 +429,9 @@ function updateTheme() {
 }
 
 /**
- * タスクの完了状態を切り替える関数
+ * 8-1. タスクの完了状態を切り替える関数
+ * (変更なし。この関数は内部で renderTasks を呼び出し、
+ * renderTasks が sortTasks を呼び出すため、自動的にソートに反映される)
  */
 function toggleTaskComplete(taskId) {
     const task = tasks.find(t => t.id === taskId);
@@ -528,24 +535,24 @@ function renderTasks() {
 
 /**
  * 7-2. タスクモーダルを開く関数（新規・変更兼用）
- * @param {object | null} task - 変更するタスクのオブジェクト。新規の場合はnull
  */
 function openTaskModal(task = null) {
     const modalTitle = taskModal.querySelector('h2');
-
     if (task) {
         // 変更モード
         modalTitle.textContent = 'タスクを変更';
-        currentEditingTaskId = task.id; // 編集中のIDをセット
+        currentEditingTaskId = task.id;
         taskTitleInput.value = task.title;
         taskDueDateInput.value = task.dueDate;
+        taskTagInput.value = task.tag || ''; // ★ 5-2 更新: タグ情報をセット
         taskPriorityInput.value = task.priority;
     } else {
         // 新規登録モード
         modalTitle.textContent = 'タスクを登録';
-        currentEditingTaskId = null; // 編集中のIDをクリア
+        currentEditingTaskId = null;
         taskTitleInput.value = '';
         taskDueDateInput.value = new Date().toISOString().split('T')[0];
+        taskTagInput.value = ''; // ★ 5-2 更新: タグ入力欄をクリア
         taskPriorityInput.value = 'medium';
     }
     taskModal.classList.remove('hidden');
@@ -562,6 +569,7 @@ function closeTaskModal() {
 function saveTask() {
     const title = taskTitleInput.value.trim();
     const dueDate = taskDueDateInput.value;
+    const tag = taskTagInput.value.trim(); // ★ 5-2 更新: タグの値を取得
     const priority = taskPriorityInput.value;
 
     if (!title || !dueDate) {
@@ -575,6 +583,7 @@ function saveTask() {
         if (task) {
             task.title = title;
             task.dueDate = dueDate;
+            task.tag = tag; // ★ 5-2 更新: タグを更新
             task.priority = priority;
         }
     } else {
@@ -583,6 +592,7 @@ function saveTask() {
             id: Date.now(),
             title: title,
             dueDate: dueDate,
+            tag: tag, // ★ 5-2 更新: タグを保存
             priority: priority,
             completed: false
         };
@@ -592,7 +602,7 @@ function saveTask() {
     localStorage.setItem('tasks', JSON.stringify(tasks));
     closeTaskModal();
     renderTasks();
-    updateTheme(); // ★ 9-1. テーマを更新
+    updateTheme();
 }
 
 
