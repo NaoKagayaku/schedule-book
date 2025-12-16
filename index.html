@@ -3,13 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>スケジュール帳 (3カラムUI)</title>
+    <title>スケジュール帳 (スライダーUI)</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="theme-default"> <div class="app-container">
 
         <aside class="sidebar-left">
             <h2>タスク一覧</h2>
+            <div id="priority-chart-container">
+                <p>タスク優先度グラフ</p>
+                <div class="chart-wrapper">
+                    </div>
+            </div>
+
             <div id="task-list-container">
                 </div>
         </aside>
@@ -36,42 +42,44 @@
                 <div id="calendar-grid">
                     </div>
             </section>
+        </main>
+
+        <aside class="sidebar-right">
+            <div class="sidebar-right-scrollable-content">
+                <h2>タスクを追加</h2>
+                <form id="new-task-form">
+                    <label for="new-task-title">タスク名:</label>
+                    <input type="text" id="new-task-title" required>
+
+                    <label for="new-task-due-date">期限:</label>
+                    <input type="date" id="new-task-due-date" required>
+
+                    <label for="new-task-priority">優先度: <span id="priority-value-label">いつまでにやろうか</span></label>
+                    <input type="range" id="new-task-priority" min="1" max="5" value="3" step="1">
+                    <div class="priority-labels">
+                        <span>できるときに</span>
+                        <span>絶対に</span>
+                    </div>
+
+                    <label for="new-task-tag">タグ:</label>
+                    <select id="new-task-tag">
+                        <option value="">(タグなし)</option>
+                        <option value="授業">授業</option>
+                        <option value="サークル">サークル</option>
+                        <option value="バイト">バイト</option>
+                        <option value="その他">その他</option>
+                    </select>
+
+                    <button type="submit">登録</button>
+                </form>
+
+                <h2>予定を追加</h2>
+                <button id="add-event-button">予定を登録</button>
+            </div>
 
             <footer id="clock-container">
                 <p id="clock"></p>
             </footer>
-        </main>
-
-        <aside class="sidebar-right">
-            <h2>タスクを追加</h2>
-            <form id="new-task-form">
-                <label for="new-task-title">タスク名:</label>
-                <input type="text" id="new-task-title" required>
-
-                <label for="new-task-due-date">期限:</label>
-                <input type="date" id="new-task-due-date" required>
-
-                <label for="new-task-priority">優先度:</label>
-                <select id="new-task-priority">
-                    <option value="high">高</option>
-                    <option value="medium" selected>中</option>
-                    <option value="low">低</option>
-                </select>
-
-                <label for="new-task-tag">タグ:</label>
-                <select id="new-task-tag">
-                    <option value="">(タグなし)</option>
-                    <option value="授業">授業</option>
-                    <option value="サークル">サークル</option>
-                    <option value="バイト">バイト</option>
-                    <option value="その他">その他</option>
-                </select>
-
-                <button type="submit">登録</button>
-            </form>
-
-            <h2>予定を追加</h2>
-            <button id="add-event-button">予定を登録</button>
         </aside>
 
     </div>

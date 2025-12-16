@@ -40,6 +40,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const nextTaskList = document.getElementById('next-task-list');
     let notificationTimer = null;
 
+    // ★ 要求1: スライダー関連
+    const prioritySlider = document.getElementById('new-task-priority');
+    const priorityValueLabel = document.getElementById('priority-value-label');
+    // 5段階の優先度ラベル
+    const priorityLabels = {
+        1: "できるときにやる",
+        2: "時間があればやりたい",
+        3: "いつまでにやろうか",
+        4: "早めにやるべき",
+        5: "絶対にやらなきゃいけない"
+    };
+
+    // ★ 要求3: グラフコンテナ
+    const chartWrapper = document.querySelector('#priority-chart-container .chart-wrapper');
+
     // --- 0. ヘルパー関数 (新規追加) ---
 
     /**
@@ -188,21 +203,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 3. タスク管理 (5, 6, 7, 8, 9, 10) ---
 
     /**
-     * 10-1. 重要度スコア計算
+     * ★ 10-1 & 要求2. 重要度スコア計算 (5段階優先度に対応)
      */
     function calculateImportanceScore(task) {
-        const priorityMap = { high: 3, medium: 2, low: 1 };
-        const PRIORITY_WEIGHT = 3;
+        // スライダーの値 (1-5) をそのままスコアとして使用
+        const priorityScore = parseInt(task.priority, 10) || 1;
+        // 重みを調整 (優先度の影響を5段階スケールに合わせる)
+        const PRIORITY_WEIGHT = 4;
         const DEADLINE_WEIGHT = 5;
         const OVERDUE_DEADLINE_SCORE = 3.0;
-        const priorityScore = priorityMap[task.priority] || 1;
-        const today = new Date(); today.setHours(0, 0, 0, 0);
         const dueDate = new Date(task.dueDate); dueDate.setHours(0, 0, 0, 0);
-        const diffTime = dueDate.getTime() - today.getTime();
-        const diffInDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+        const diffInDays = getDaysUntilDue(task.dueDate);
         let deadlineScore;
         if (diffInDays < 0) { deadlineScore = OVERDUE_DEADLINE_SCORE; }
         else { deadlineScore = 1 / (diffInDays + 1); }
+
         return (PRIORITY_WEIGHT * priorityScore) + (DEADLINE_WEIGHT * deadlineScore);
     }
 
@@ -221,7 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
      * (新) 左サイドバーのタスク一覧を描画
      */
     /**
-     * ★ (修正) 左サイドバーのタスク一覧を描画 (要求1)
+     * ★ (修正) 左サイドバーのタスク一覧を描画 (要求1.2)
      */
     function renderTaskList() {
         taskListContainer.innerHTML = '';
@@ -239,26 +254,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const diffInDays = getDaysUntilDue(task.dueDate);
 
-            // 優先度・期限切れハイライト
+            // ★ 要求1: 5段階の優先度クラスを付与
+            taskItem.classList.add(`priority-${task.priority}`);
+
             if (!task.completed && diffInDays < 0) {
-                taskItem.classList.add('overdue'); // 期限切れ
-            } else {
-                taskItem.classList.add(`priority-${task.priority}`);
+                taskItem.classList.add('overdue');
             }
 
             if (task.completed) taskItem.classList.add('completed');
             if (task.id === currentSelectedTaskId) taskItem.classList.add('selected');
 
-            // ★ 要求1: アイコンの追加
+            // ★ 要求1: アイコンの変更 (5段階対応)
             const icon = document.createElement('span');
             icon.classList.add('task-icon');
             if (!task.completed) {
-                if (diffInDays < 0) {
-                    icon.textContent = '🔥'; // 期限切れ
+                if (task.priority == 5) {
+                    icon.textContent = '🔥'; // 絶対に
+                } else if (diffInDays < 0) {
+                    icon.textContent = '🚨'; // 期限切れ (優先度5以外)
                 } else if (diffInDays <= 3) {
                     icon.textContent = '⏳'; // 期限間近
-                } else if (task.priority === 'high') {
-                    icon.textContent = '⭐'; // 優先度 高
+                } else if (task.priority == 4) {
+                    icon.textContent = '⭐'; // 早めに
+                } else if (task.priority == 1) {
+                    icon.textContent = '🍃'; // できるときに
                 }
             }
             taskItem.appendChild(icon);
@@ -308,6 +327,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    /**
+     * ★ (修正) 中央エリアにタスク詳細を表示 (要求2)
+     */
     function showTaskInMainArea(taskId) {
         currentSelectedTaskId = taskId;
         renderTaskList(); // サイドバーの選択ハイライトを更新
@@ -319,19 +341,22 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const priorityMap = { high: '高', medium: '中', low: '低' };
+        // ★ 5段階の優先度マップを使用
+        const priorityMap = priorityLabels;
         const diffInDays = getDaysUntilDue(task.dueDate);
 
-        // ★ 要求2: 選定理由の判定
+        // ★ 要求2: 選定理由の判定 (5段階対応)
         let reason = '';
-        if (diffInDays < 0) {
+        if (task.priority == 5) {
+            reason = '理由: 「絶対にやらなきゃいけない」タスクです';
+        } else if (diffInDays < 0) {
             reason = '理由: 期限が過ぎています！';
         } else if (diffInDays === 0) {
             reason = '理由: 今日が期限です！';
+        } else if (task.priority == 4) {
+            reason = '理由: 「早めにやるべき」タスクです';
         } else if (diffInDays <= 3) {
             reason = `理由: 期限が迫っています (残り${diffInDays}日)`;
-        } else if (task.priority === 'high') {
-            reason = '理由: 優先度が高いタスクです';
         } else {
             reason = '理由: 次に取り組むタスクです';
         }
@@ -383,6 +408,53 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
+     * (新) ★ 要求3: 優先度グラフを描画
+     */
+    function renderPriorityChart() {
+        chartWrapper.innerHTML = ''; // グラフをクリア
+
+        // 未完了タスクのみを対象にカウント
+        const incompleteTasks = tasks.filter(t => !t.completed);
+        const countMap = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+        let maxCount = 0; // 最大件数 (高さの正規化のため)
+
+        incompleteTasks.forEach(task => {
+            const p = task.priority || 1;
+            if (countMap.hasOwnProperty(p)) {
+                countMap[p]++;
+                if (countMap[p] > maxCount) {
+                    maxCount = countMap[p];
+                }
+            }
+        });
+
+        if (maxCount === 0) maxCount = 1; // 0除算を避ける
+
+        // グラフのラベル (簡潔版)
+        const chartLabels = { 1: '低', 2: '↓', 3: '中', 4: '↑', 5: '高' };
+
+        // 棒グラフを生成
+        for (let i = 1; i <= 5; i++) {
+            const bar = document.createElement('div');
+            bar.classList.add('chart-bar');
+            bar.dataset.priority = i; // 色分け用
+
+            // 件数をパーセンテージで高さに反映
+            const heightPercent = (countMap[i] / maxCount) * 100;
+            bar.style.height = `${heightPercent}%`;
+            bar.title = `${priorityLabels[i]}: ${countMap[i]}件`; // ホバーで詳細表示
+
+            // ラベルを追加
+            const label = document.createElement('span');
+            label.classList.add('chart-bar-label');
+            label.textContent = chartLabels[i];
+            bar.appendChild(label);
+
+            chartWrapper.appendChild(bar);
+        }
+    }
+
+    /**
      * (新) 右サイドバーのフォームでタスクを保存 (5-3)
      */
     function handleTaskFormSubmit(e) {
@@ -390,7 +462,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const title = document.getElementById('new-task-title').value.trim();
         const dueDate = document.getElementById('new-task-due-date').value;
-        const priority = document.getElementById('new-task-priority').value;
+        const priority = prioritySlider.value; // ★ スライダーから値を取得
         const tag = document.getElementById('new-task-tag').value;
 
         if (!title || !dueDate) {
@@ -410,14 +482,16 @@ document.addEventListener('DOMContentLoaded', () => {
         tasks.push(newTask);
         localStorage.setItem('tasks', JSON.stringify(tasks));
 
-        // フォームをリセット
         newTaskForm.reset();
-        document.getElementById('new-task-due-date').value = ''; // dateはreset()で消えないことがある
+        prioritySlider.value = 3; // スライダーをデフォルトに
+        priorityValueLabel.textContent = priorityLabels[3]; // ラベルをデフォルトに
+        document.getElementById('new-task-due-date').value = '';
 
         // UIを更新
         renderTaskList();
         updateTodayTask();
         updateTheme();
+        renderPriorityChart(); // ★ グラフを更新
     }
 
     /**
@@ -437,6 +511,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderTaskList();
             updateTodayTask(); // 次のタスクを表示
             updateTheme(); // 9-1
+            renderPriorityChart(); // ★ グラフを更新
         }
     }
 
@@ -452,6 +527,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderTaskList();
             updateTodayTask(); // 次のタスクを表示
             updateTheme(); // 9-1
+            renderPriorityChart(); // ★ グラフを更新
         }
     }
 
@@ -487,9 +563,15 @@ document.addEventListener('DOMContentLoaded', () => {
             return !task.completed && dueDate < today;
         }).length;
         const body = document.body;
-        body.classList.remove('theme-warning', 'theme-alert');
-        if (overdueTasksCount > 3) { body.classList.add('theme-alert'); }
-        else if (overdueTasksCount > 0) { body.classList.add('theme-warning'); }
+
+        // ★ CSSクラスではなく、直接スタイルを変更
+        if (overdueTasksCount > 3) {
+            body.style.backgroundColor = '#fff5f5'; // 危険
+        } else if (overdueTasksCount > 0) {
+            body.style.backgroundColor = '#fffbe6'; // 警告
+        } else {
+            body.style.backgroundColor = '#f0f2f5'; // デフォルト
+        }
     }
 
 
@@ -520,21 +602,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // タスク関連
     newTaskForm.addEventListener('submit', handleTaskFormSubmit);
-    // ★ 要求3: タスク入力時のアシスト
-    newTaskDueDateInput.addEventListener('change', () => {
-        if (!newTaskDueDateInput.value) return; // 日付がクリアされた場合は何もしない
 
-        const diffInDays = getDaysUntilDue(newTaskDueDateInput.value);
-
-        // 期限が未来かつ7日以内 (0 <= diff <= 7) の場合に通知
-        if (diffInDays >= 0 && diffInDays <= 7) {
-            // alertはUXが良くないので、console.logに変更（または簡易なメッセージ要素をHTMLに追加）
-            console.log('入力アシスト: このタスクは緊急性が高いと判断されます。');
-
-            // alertを使用する場合:
-            // alert('このタスクは緊急性が高いと判断されます。\n（期限が1週間以内に設定されました）');
-        }
+    // ★ 要求1: スライダーの値に応じてラベルを更新
+    prioritySlider.addEventListener('input', (e) => {
+        const value = e.target.value;
+        priorityValueLabel.textContent = priorityLabels[value];
+        // 動的にラベルの色を変更（オプション）
+        const colors = {1: '#28a745', 2: '#17a2b8', 3: '#007bff', 4: '#ffc107', 5: '#dc3545'};
+        priorityValueLabel.style.color = colors[value];
+        priorityValueLabel.style.borderColor = colors[value];
+        priorityValueLabel.style.background = `${colors[value]}20`; // 薄い色
     });
+
+    // ★ 要求3: タスク入力時のアシスト
+    // newTaskDueDateInput.addEventListener('change', () => {
+    //     if (!newTaskDueDateInput.value) return; // 日付がクリアされた場合は何もしない
+
+    //     const diffInDays = getDaysUntilDue(newTaskDueDateInput.value);
+
+    //     // 期限が未来かつ7日以内 (0 <= diff <= 7) の場合に通知
+    //     if (diffInDays >= 0 && diffInDays <= 7) {
+    //         // alertはUXが良くないので、console.logに変更（または簡易なメッセージ要素をHTMLに追加）
+    //         console.log('入力アシスト: このタスクは緊急性が高いと判断されます。');
+
+    //         // alertを使用する場合:
+    //         // alert('このタスクは緊急性が高いと判断されます。\n（期限が1週間以内に設定されました）');
+    //     }
+    // });
 
     // --- 5. 初期表示実行 ---
     updateClock();
@@ -542,5 +636,6 @@ document.addEventListener('DOMContentLoaded', () => {
     renderTaskList();
     updateTodayTask();
     updateTheme();
+    renderPriorityChart(); // ★ グラフを初期描画
 
 });

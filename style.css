@@ -10,8 +10,8 @@ body {
 }
 
 /* 9-1: テーマ */
-body.theme-warning { background-color: #fffbe6; }
-body.theme-alert { background-color: #fff5f5; }
+/*body.theme-warning { background-color: #fffbe6; }
+body.theme-alert { background-color: #fff5f5; }*/
 
 * {
     box-sizing: border-box;
@@ -30,8 +30,9 @@ h2 {
     display: grid;
     grid-template-columns: 300px 1fr 280px; /* 左 | 中央 | 右 */
     gap: 20px;
-    height: 100vh;
+    height: 100vh; /* ★ 高さをビューポートいっぱいに固定 */
     padding: 20px;
+    overflow: hidden; /* ★ app-container自体のスクロールを禁止 */
 }
 
 /* サイドバー共通スタイル */
@@ -40,9 +41,11 @@ h2 {
     border-radius: 10px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     padding: 20px;
+    /* ★ 要求3: 高さを固定し、内部でのスクロール制御を可能にする */
     height: 100%;
     display: flex;
     flex-direction: column;
+    overflow: hidden; /* ★ 各エリア自体がスクロールしないように */
 }
 
 /* ========================== */
@@ -55,11 +58,59 @@ h2 {
 .sidebar-left h2 {
     margin-top: 0;
     font-size: 1.5rem;
+    flex-shrink: 0; /* ★ 縮まないように */
 }
 
+/* ★ 要求3: 優先度グラフ */
+#priority-chart-container {
+    padding: 10px;
+    background: #f4f4f4;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    flex-shrink: 0; /* ★ 縮まないように */
+}
+#priority-chart-container p {
+    font-size: 0.9rem;
+    font-weight: bold;
+    margin: 0 0 10px 0;
+    text-align: center;
+}
+.chart-wrapper {
+    display: flex;
+    justify-content: space-around;
+    align-items: flex-end;
+    height: 80px;
+    border-bottom: 2px solid #ccc;
+    padding-bottom: 5px;
+}
+.chart-bar {
+    width: 18%;
+    background-color: #007bff;
+    transition: height 0.5s ease;
+    position: relative;
+    border-radius: 4px 4px 0 0;
+}
+.chart-bar-label {
+    position: absolute;
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.7rem;
+    color: #555;
+    white-space: nowrap;
+}
+/* グラフの色分け (優先度に対応) */
+.chart-bar[data-priority="1"] { background-color: #28a745; }
+.chart-bar[data-priority="2"] { background-color: #17a2b8; }
+.chart-bar[data-priority="3"] { background-color: #007bff; }
+.chart-bar[data-priority="4"] { background-color: #ffc107; }
+.chart-bar[data-priority="5"] { background-color: #dc3545; }
+
 #task-list-container {
-    flex-grow: 1; /* 残りの高さいっぱいまで広げる */
-    overflow-y: auto; /* タスクが多くなったらスクロール */
+    /* ★ 要求3: 残りの高さいっぱいまで広がり、内部でスクロール */
+    flex-grow: 1;
+    overflow-y: auto;
+    min-height: 0; /* ★ flex-grow と overflow を正しく動作させるため */
     padding-right: 5px;
 }
 
@@ -116,10 +167,17 @@ h2 {
     font-weight: 900; /* 通常より太く */
 }
 
-/* 優先度・期限ハイライト */
-.task-item.priority-high { border-left-color: #ffc107; } /* 黄 */
-.task-item.priority-medium { border-left-color: #17a2b8; } /* 青緑 */
-.task-item.priority-low { border-left-color: #28a745; } /* 緑 */
+/* ★ 要求1: 優先度・期限ハイライト (5段階に変更) */
+/* 5: 絶対に */
+.task-item.priority-5 { border-left-color: #dc3545; }
+/* 4: 早めに */
+.task-item.priority-4 { border-left-color: #ffc107; }
+/* 3: いつまでに */
+.task-item.priority-3 { border-left-color: #007bff; }
+/* 2: 時間があれば */
+.task-item.priority-2 { border-left-color: #17a2b8; }
+/* 1: できるときに */
+.task-item.priority-1 { border-left-color: #28a745; }
 .task-item.overdue {
     border-left-color: #dc3545; /* 赤 (期限切れ) */
     background-color: #fff5f5; /* ★ 背景も薄く赤に */
@@ -158,7 +216,7 @@ h2 {
 /* 中央メインエリア */
 /* ========================== */
 .main-content {
-    overflow-y: auto; /* メインエリアがスクロール */
+    overflow-y: auto; /* ★ 要求3: メインエリアは全体がスクロール */
 }
 
 /* 今日のタスク */
@@ -270,25 +328,48 @@ h2 {
 .other-month { color: #ccc; cursor: default; }
 .other-month:hover { background-color: transparent; }
 
-/* フッター時刻 */
-#clock-container {
-    text-align: center;
-    margin-top: 25px;
-    border-top: 1px solid #eee;
-    padding-top: 20px;
-}
-#clock {
-    font-size: 2rem;
-    font-weight: bold;
-    color: #555;
-}
-
 /* ========================== */
 /* 右サイドバー: 新規タスク */
 /* ========================== */
 .sidebar-right h2 {
-    font-size: 1.5rem;
     margin-top: 0;
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+/* ★ 要求3: 右サイドバーのスクロールラッパー */
+.sidebar-right-scrollable-content {
+    flex-grow: 1; /* ★ 占有できる高さをすべて占有 */
+    overflow-y: auto; /* ★ 内部でスクロール */
+    min-height: 0; /* ★ flex-grow と overflow を正しく動作させるため */
+    padding: 0 5px 20px 0; /* スクロールバー用の余白 */
+}
+
+/* ★ 要求2: 予定追加のh2にスペースを追加 */
+#add-event-heading {
+    margin-top: 30px;
+}
+
+/* ★ 要求1: 優先度スライダー */
+#new-task-priority {
+    width: 100%;
+    margin-top: 5px;
+}
+.priority-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: #777;
+    padding: 0 5px;
+    margin-top: -5px; /* スライダーに近づける */
+}
+#priority-value-label {
+    font-weight: bold;
+    color: #007bff;
+    padding: 2px 6px;
+    background: #e6f7ff;
+    border-radius: 4px;
+    margin-left: 5px;
 }
 
 /* 新規タスクフォーム */
@@ -339,6 +420,21 @@ h2 {
 }
 #add-event-button:hover {
     background-color: #138496;
+}
+
+/* ★ 要求1: フッター時刻 (右サイドバー最下部) */
+#clock-container {
+    text-align: center;
+    border-top: 1px solid #eee;
+    padding-top: 15px;
+    margin-top: 15px; /* スクロールエリアとの余白 */
+    flex-shrink: 0; /* ★ 高さが縮まないように固定 */
+}
+#clock {
+    font-size: 1.8rem; /* 少し小さく調整 */
+    font-weight: bold;
+    color: #555;
+    margin: 0; /* デフォルトのpマージンをリセット */
 }
 
 /* ========================== */
